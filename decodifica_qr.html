@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Decodifica QR Operatore</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;min-height:100dvh;background:#191c29;font-family:'Segoe UI',sans-serif;color:#fff;display:flex;flex-direction:column;padding:1rem}
+h1{font-size:1.2rem;color:#ce93d8;margin-bottom:.3rem;text-align:center}
+.sub{font-size:.8rem;color:#888;margin-bottom:1rem;text-align:center}
+.card{background:rgba(26,43,58,.9);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:1.5rem;max-width:520px;width:100%;margin:0 auto;flex:1}
+label{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.5px;color:#b0b0b0;margin-bottom:.25rem;margin-top:.8rem}
+textarea,input{width:100%;padding:.5rem .7rem;border:1px solid rgba(255,255,255,.18);border-radius:8px;background:rgba(255,255,255,.05);color:#fff;font-family:monospace;font-size:.85rem;transition:border-color .3s;resize:vertical}
+textarea:focus,input:focus{outline:none;border-color:#7b1fa2;box-shadow:0 0 0 2px rgba(123,31,162,.2)}
+input{font-size:1.2rem;letter-spacing:6px;text-align:center}
+.btn{padding:.6rem 1.2rem;border:none;border-radius:8px;font-weight:600;font-size:.85rem;cursor:pointer;width:100%;margin-top:.6rem;background:#7b1fa2;color:#fff;transition:background .3s}
+.btn:hover{background:#9c27b0}.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-camera{background:#2e7d32}.btn-camera:hover{background:#388e3c}
+.btn-danger{background:#b71c1c}.btn-danger:hover{background:#c62828}
+.alert{background:rgba(244,67,54,.15);border:1px solid rgba(244,67,54,.3);color:#ef5350;padding:.6rem;border-radius:8px;font-size:.8rem;margin-top:.8rem;display:none}
+.result{display:none;margin-top:1rem;background:rgba(76,175,80,.08);border:1px solid rgba(76,175,80,.2);border-radius:8px;padding:1rem}
+.result table{width:100%}
+.result td{padding:4px 6px;font-size:.85rem;vertical-align:top;color:#fff}
+.result td:first-child{color:#b0b0b0;white-space:nowrap;width:40%;font-size:.7rem;text-transform:uppercase;letter-spacing:.5px}
+.result td:last-child{font-weight:600}
+.scanner-wrap{position:relative;width:100%;max-width:400px;margin:0 auto;border-radius:12px;overflow:hidden;background:#000;display:none}
+.scanner-wrap video{width:100%;height:auto;display:block}
+.scanner-overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:200px;height:200px;border:3px solid #7b1fa2;border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.5);pointer-events:none}
+.scanner-corner{position:absolute;width:24px;height:24px;border-color:#ce93d8;border-style:solid}
+.scanner-corner.tl{top:8px;left:8px;border-width:3px 0 0 3px}
+.scanner-corner.tr{top:8px;right:8px;border-width:3px 3px 0 0}
+.scanner-corner.bl{bottom:8px;left:8px;border-width:0 0 3px 3px}
+.scanner-corner.br{bottom:8px;right:8px;border-width:0 3px 3px 0}
+.tab-bar{display:flex;gap:.5rem;margin-bottom:.8rem}
+.tab-bar button{flex:1;padding:.4rem;border:1px solid rgba(255,255,255,.15);border-radius:8px;background:transparent;color:#b0b0b0;font-size:.75rem;cursor:pointer;transition:all .3s}
+.tab-bar button.active{background:rgba(123,31,162,.3);border-color:#7b1fa2;color:#ce93d8}
+.or-divider{text-align:center;font-size:.7rem;color:#555;margin:.6rem 0;text-transform:uppercase}
+.footer{margin-top:1rem;font-size:.65rem;color:#555;text-align:center}
+@media(max-width:480px){.card{padding:1rem;border-radius:12px}}
+</style>
+</head>
+<body>
+<div class="card">
+    <h1>Decodifica QR Operatore</h1>
+    <div class="sub">Nessun dato lascia il dispositivo</div>
+
+    <div class="tab-bar">
+        <button class="active" id="tabCamera" onclick="switchTab('camera')">Inquadra QR</button>
+        <button id="tabText" onclick="switchTab('text')">Incolla testo</button>
+    </div>
+
+    <!-- Camera scanner -->
+    <div id="cameraTab">
+        <div class="scanner-wrap" id="scannerWrap">
+            <video id="video" playsinline muted></video>
+            <div class="scanner-overlay">
+                <div class="scanner-corner tl"></div>
+                <div class="scanner-corner tr"></div>
+                <div class="scanner-corner bl"></div>
+                <div class="scanner-corner br"></div>
+            </div>
+        </div>
+        <button class="btn btn-camera" id="btnScan" onclick="startCamera()">Avvia fotocamera</button>
+        <button class="btn btn-danger" id="btnStop" onclick="stopCamera()" style="display:none">Ferma fotocamera</button>
+    </div>
+
+    <!-- Text tab -->
+    <div id="textTab" style="display:none">
+        <label>Dati QR (testo copiato dal QR)</label>
+        <textarea id="qrInput" rows="3" placeholder="SICUREZZA_V2:..."></textarea>
+    </div>
+
+    <label>PIN di sblocco (6 cifre)</label>
+    <input type="text" id="pinInput" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" placeholder="000000">
+
+    <button class="btn" id="btnDecode" onclick="decodificaTesto()">Decodifica</button>
+
+    <div class="alert" id="errorMsg"></div>
+
+    <div class="result" id="result"></div>
+</div>
+
+<div class="footer">Elaborazione locale — nessuna connessione di rete</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script>
+// === Tab switching ===
+function switchTab(tab) {
+    document.getElementById('cameraTab').style.display = tab === 'camera' ? 'block' : 'none';
+    document.getElementById('textTab').style.display = tab === 'text' ? 'block' : 'none';
+    document.getElementById('tabCamera').className = tab === 'camera' ? 'active' : '';
+    document.getElementById('tabText').className = tab === 'text' ? 'active' : '';
+    if (tab === 'camera') stopCamera();
+    if (tab === 'text') document.getElementById('errorMsg').style.display = 'none';
+}
+
+// === Camera QR scan ===
+var video = document.getElementById('video');
+var scannerWrap = document.getElementById('scannerWrap');
+var scanInterval = null;
+
+function startCamera() {
+    var err = document.getElementById('errorMsg');
+    err.style.display = 'none';
+
+    navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 640 } },
+        audio: false
+    }).then(function(stream) {
+        video.srcObject = stream;
+        video.setAttribute('playsinline', true);
+        video.play();
+        scannerWrap.style.display = 'block';
+        document.getElementById('btnScan').style.display = 'none';
+        document.getElementById('btnStop').style.display = 'block';
+        document.getElementById('errorMsg').style.display = 'none';
+        startScanLoop();
+    }).catch(function(e) {
+        mostraErrore('Fotocamera non accessibile: ' + e.message);
+    });
+}
+
+function stopCamera() {
+    if (scanInterval) { clearInterval(scanInterval); scanInterval = null; }
+    if (video.srcObject) {
+        video.srcObject.getTracks().forEach(function(t) { t.stop(); });
+        video.srcObject = null;
+    }
+    scannerWrap.style.display = 'none';
+    document.getElementById('btnScan').style.display = 'block';
+    document.getElementById('btnStop').style.display = 'none';
+}
+
+function startScanLoop() {
+    var canvas = document.createElement('canvas');
+    var ctx = canvas.getContext('2d');
+
+    scanInterval = setInterval(function() {
+        if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
+        var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        if (typeof jsQR === 'undefined') return;
+        var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+
+        if (code && code.data) {
+            stopCamera();
+            var pin = document.getElementById('pinInput').value.trim();
+            if (!pin || pin.length !== 6) {
+                mostraErrore('Inserisci il PIN a 6 cifre prima di inquadrare.');
+                startCamera();
+                return;
+            }
+            var data = decodificaDati(code.data, pin);
+            if (data) {
+                mostraRisultato(data);
+            } else {
+                mostraErrore('PIN errato o QR non valido.');
+                startCamera();
+            }
+        }
+    }, 300);
+}
+
+// === Decryption (no Web Crypto API) ===
+function decodificaDati(qrText, pin) {
+    if (!qrText.startsWith('SICUREZZA_V2:')) {
+        mostraErrore('Formato QR non valido. Deve iniziare con SICUREZZA_V2:');
+        return null;
+    }
+    try {
+        var b64 = qrText.substring('SICUREZZA_V2:'.length);
+        var raw = base64ToBytes(b64);
+        var dec = '';
+        for (var i = 0; i < raw.length; i++) {
+            dec += String.fromCharCode(raw[i] ^ pin.charCodeAt(i % pin.length));
+        }
+        return JSON.parse(dec);
+    } catch(e) {
+        return null;
+    }
+}
+
+function decodificaTesto() {
+    var qr = document.getElementById('qrInput').value.trim();
+    var pin = document.getElementById('pinInput').value.trim();
+    document.getElementById('errorMsg').style.display = 'none';
+    document.getElementById('result').style.display = 'none';
+
+    if (!qr) { mostraErrore('Incolla i dati dal QR Code o usa la fotocamera.'); return; }
+    if (!pin || pin.length !== 6) { mostraErrore('Inserisci il PIN a 6 cifre.'); return; }
+
+    var data = decodificaDati(qr, pin);
+    if (data) {
+        mostraRisultato(data);
+    } else {
+        mostraErrore('PIN errato o formato QR non valido.');
+    }
+}
+
+function mostraRisultato(data) {
+    var res = document.getElementById('result');
+    var html = '<table>';
+    var fields = [
+        ['Grado', data.g],
+        ['Nome', data.n],
+        ['Cognome', data.c],
+        ['Data Nascita', data.dn],
+        ['Codice Fiscale', data.cf],
+        ['Reparto', data.r],
+        ['Mansione', data.m],
+    ];
+    for (var i = 0; i < fields.length; i++) {
+        if (fields[i][1]) {
+            html += '<tr><td>' + fields[i][0] + '</td><td>' + escHtml(fields[i][1]) + '</td></tr>';
+        }
+    }
+    html += '</table>';
+    res.innerHTML = html;
+    res.style.display = 'block';
+    document.getElementById('errorMsg').style.display = 'none';
+}
+
+function mostraErrore(msg) {
+    var el = document.getElementById('errorMsg');
+    el.textContent = msg;
+    el.style.display = 'block';
+}
+
+function escHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s || '-';
+    return d.innerHTML;
+}
+
+function base64ToBytes(b64) {
+    var bin = atob(b64.replace(/-/g, '+').replace(/_/g, '/'));
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+}
+</script>
+</body>
+</html>
